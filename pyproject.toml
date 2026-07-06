@@ -1,0 +1,29 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "meldlane-transcribe"
+version = "0.1.0"
+description = "Meeting transcription: audio file or live mic+system capture -> structured JSON transcript with timeline and speakers"
+readme = "README.md"
+license = { text = "MIT" }
+authors = [{ name = "Roman Fakhrutdinov" }]
+requires-python = ">=3.11"
+dependencies = [
+    "faster-whisper",
+    "sounddevice",
+    "scipy",
+    "numpy",
+    "typer",
+    "pydantic",
+]
+
+[project.optional-dependencies]
+diarize = ["pyannote.audio"]
+
+[project.scripts]
+mtranscribe = "meldlane_transcribe.cli:main"
+
+[tool.setuptools.packages.find]
+include = ["meldlane_transcribe*"]
