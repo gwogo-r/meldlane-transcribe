@@ -17,6 +17,7 @@ dependencies = [
     "numpy",
     "typer",
     "pydantic",
+    "pyaudiowpatch; sys_platform == 'win32'",
 ]
 
 [project.optional-dependencies]

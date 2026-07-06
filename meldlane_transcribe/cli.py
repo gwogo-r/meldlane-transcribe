@@ -103,7 +103,7 @@ def doctor_cmd():
     """Диагностика: устройства, стратегия захвата, что делать, если системного звука нет."""
     import sounddevice as sd
 
-    from .capture import LOOPBACK_NAME_HINTS, autodetect_loopback
+    from .capture import LOOPBACK_NAME_HINTS, system_track_strategy
 
     print("входные аудио-устройства:")
     for i, d in enumerate(sd.query_devices()):
@@ -113,17 +113,23 @@ def doctor_cmd():
     default_in = sd.default.device[0]
     print(f"\nмикрофон по умолчанию: #{default_in} {sd.query_devices(default_in)['name']}")
 
-    loopback = autodetect_loopback()
-    if loopback is not None:
-        print(f"системный звук: найден loopback #{loopback} {sd.query_devices(loopback)['name']} — записывается дорожка «others»")
+    strategy = system_track_strategy()
+    if strategy is not None:
+        name, _ = strategy
+        label = {
+            "wasapi-loopback": "WASAPI loopback (любой вывод, без Stereo Mix/VB-Cable)",
+            "named-device": "именованное loopback-устройство (Stereo Mix/VB-Cable/BlackHole)",
+        }[name]
+        print(f"системный звук: {label} — записывается дорожка «others»")
     else:
-        print("системный звук: loopback-устройство НЕ найдено — запись пойдёт только с микрофона.")
+        print("системный звук: не найден — запись пойдёт только с микрофона.")
         if sys.platform == "win32":
-            print("  Windows: включи «Стерео микшер» (Панель управления → Звук → Запись → ПКМ → Показать отключённые)")
+            print("  Windows: установи pyaudiowpatch (pip install pyaudiowpatch) для WASAPI loopback,")
+            print("  или включи «Стерео микшер» (Панель управления → Звук → Запись → ПКМ → Показать отключённые),")
             print("  или установи VB-Cable (vb-audio.com/Cable).")
         elif sys.platform == "darwin":
             print("  macOS: установи BlackHole одной командой: brew install blackhole-2ch")
-        print(f"  ищу по именам: {', '.join(LOOPBACK_NAME_HINTS)} (или задай MTRANSCRIBE_SYSTEM_DEVICE)")
+        print(f"  именованный автодетект ищет: {', '.join(LOOPBACK_NAME_HINTS)} (или задай MTRANSCRIBE_SYSTEM_DEVICE)")
 
 
 def main() -> None:

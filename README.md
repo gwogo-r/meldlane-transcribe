@@ -52,12 +52,15 @@ For single-track files, full diarization (`spk_0`, `spk_1`, ...) is available as
 
 ## System audio capture
 
+Cascade of strategies, first available wins:
+
 | OS | How | Setup |
 |----|-----|-------|
-| Windows | Stereo Mix / VB-Cable (auto-detected) | enable Stereo Mix in Sound settings, or install VB-Cable |
+| Windows | **WASAPI loopback** (via `pyaudiowpatch`) | none — works out of the box with any output device (speakers, headphones, Bluetooth) |
+| Windows (fallback) | Stereo Mix / VB-Cable (auto-detected) | enable Stereo Mix in Sound settings, or install VB-Cable |
 | macOS | BlackHole (auto-detected) | `brew install blackhole-2ch` |
 
-No loopback device? `mtranscribe record` still works with mic only, and `mtranscribe doctor` tells you exactly what to do. WASAPI loopback (zero-setup Windows capture from any output device) is on the roadmap.
+No loopback available? `mtranscribe record` still works with mic only, and `mtranscribe doctor` tells you exactly what to do and which strategy is active.
 
 ## Configuration (env vars, all optional)
 

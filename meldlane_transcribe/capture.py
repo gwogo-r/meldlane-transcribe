@@ -1,7 +1,14 @@
 """Живой захват: mic + system audio РАЗДЕЛЬНЫМИ дорожками (mic.wav / system.wav).
 
 Дорожки не миксуются — это даёт диаризацию «me / others» бесплатно, без ML:
-всё с микрофона — «я», всё с loopback-устройства — «собеседники».
+всё с микрофона — «я», всё с системного захвата — «собеседники».
+
+Системный звук — каскад стратегий (первая доступная побеждает):
+1. WASAPI loopback (Windows, pyaudiowpatch) — работает из коробки с ЛЮБЫМ
+   устройством вывода, наушники/Bluetooth не проблема. См. wasapi.py.
+2. Именованный loopback-девайс через sounddevice — Stereo Mix/VB-Cable
+   (Windows, если WASAPI недоступен) или BlackHole (macOS).
+3. Ничего не найдено — пишем только микрофон.
 
 Выстраданные на Windows решения (не терять при рефакторинге):
 - callback-API, не blocking read: WDM-KS устройства (Stereo Mix) падают на
@@ -16,17 +23,17 @@
 import time
 import wave
 from pathlib import Path
+from typing import Callable
 
 import numpy as np
 import sounddevice as sd
-from scipy.signal import resample_poly
 
 from . import config
+from .audio_utils import SAMPLE_RATE, resample_to_16k
 
-SAMPLE_RATE = 16_000  # целевая частота для Whisper
 MAX_SECONDS_DEFAULT = 4 * 3600
 
-# известные имена loopback-устройств для автодетекта (Windows + macOS)
+# известные имена loopback-устройств для автодетекта (fallback-путь, без WASAPI)
 LOOPBACK_NAME_HINTS = ["стерео микшер", "stereo mix", "what u hear", "cable output", "blackhole", "loopback"]
 
 
@@ -51,11 +58,8 @@ def find_device(name_hint: str | None, kind: str = "input") -> int | None:
 
 
 def autodetect_loopback() -> int | None:
-    """Ищет известное loopback-устройство (Stereo Mix / VB-Cable / BlackHole).
-
-    TODO MEL-030: полноценный WASAPI loopback на Windows (pyaudiowpatch) —
-    работает с любым устройством вывода без Stereo Mix.
-    """
+    """Ищет именованное loopback-устройство (Stereo Mix / VB-Cable / BlackHole)
+    через sounddevice — fallback-путь, когда WASAPI loopback недоступен."""
     explicit = config.system_device()
     if explicit:
         return find_device(explicit, "input")
@@ -63,16 +67,6 @@ def autodetect_loopback() -> int | None:
         if d["max_input_channels"] > 0 and any(h in d["name"].lower() for h in LOOPBACK_NAME_HINTS):
             return i
     return None
-
-
-def _resample_to_target(frames: np.ndarray, native_rate: int) -> np.ndarray:
-    """native_rate Hz, любое число каналов -> SAMPLE_RATE Hz mono int16."""
-    if frames.shape[1] > 1:
-        frames = frames.mean(axis=1, keepdims=True).astype(np.int16)
-    if native_rate == SAMPLE_RATE:
-        return frames
-    resampled = resample_poly(frames[:, 0].astype(np.float64), SAMPLE_RATE, native_rate)
-    return np.clip(resampled, -32768, 32767).astype(np.int16).reshape(-1, 1)
 
 
 def _record_stream(device: int | None, max_seconds: float, flag: Path) -> np.ndarray:
@@ -94,7 +88,21 @@ def _record_stream(device: int | None, max_seconds: float, flag: Path) -> np.nda
             time.sleep(0.5)
 
     raw = np.concatenate(frames, axis=0) if frames else np.zeros((0, channels), dtype="int16")
-    return _resample_to_target(raw, native_rate)
+    return resample_to_16k(raw, native_rate)
+
+
+def system_track_strategy() -> tuple[str, Callable[[float, Path], np.ndarray]] | None:
+    """Выбирает стратегию захвата системного звука. Возвращает (имя, функция) или None."""
+    from . import wasapi
+
+    if wasapi.is_available():
+        return "wasapi-loopback", wasapi.record_loopback
+
+    idx = autodetect_loopback()
+    if idx is not None:
+        return "named-device", lambda max_seconds, flag: _record_stream(idx, max_seconds, flag)
+
+    return None
 
 
 def _write_wav(path: Path, frames: np.ndarray) -> None:
@@ -108,28 +116,29 @@ def _write_wav(path: Path, frames: np.ndarray) -> None:
 def record_tracks(session_dir: Path, max_seconds: float = MAX_SECONDS_DEFAULT) -> dict[str, Path]:
     """Пишет дорожки до max_seconds или стоп-флага. Возвращает {"me": mic.wav, "others": system.wav}.
 
-    "others" присутствует, только если найдено loopback-устройство (см. autodetect_loopback).
-    Стоп-флаг живёт в родительской папке сессий (outputs/.capture_stop) — его ставит
-    `mtranscribe stop` из другого процесса.
+    "others" присутствует, только если найдена рабочая стратегия захвата системного
+    звука (см. system_track_strategy). Стоп-флаг живёт в родительской папке сессий
+    (outputs/.capture_stop) — его ставит `mtranscribe stop` из другого процесса.
     """
     flag = stop_flag_path(session_dir.parent)
     flag.unlink(missing_ok=True)
 
     mic_idx = find_device(config.mic_device(), "input")
-    sys_idx = autodetect_loopback()
+    strategy = system_track_strategy()
     session_dir.mkdir(parents=True, exist_ok=True)
 
     tracks: dict[str, Path] = {}
-    if sys_idx is None:
+    if strategy is None:
         frames = _record_stream(mic_idx, max_seconds, flag)
         tracks["me"] = session_dir / "mic.wav"
         _write_wav(tracks["me"], frames)
     else:
+        _, record_system = strategy
         import concurrent.futures
 
         with concurrent.futures.ThreadPoolExecutor(max_workers=2) as pool:
             mic_future = pool.submit(_record_stream, mic_idx, max_seconds, flag)
-            sys_future = pool.submit(_record_stream, sys_idx, max_seconds, flag)
+            sys_future = pool.submit(record_system, max_seconds, flag)
             mic_frames = mic_future.result()
             sys_frames = sys_future.result()
 
