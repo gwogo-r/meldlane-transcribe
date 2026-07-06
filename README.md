@@ -87,12 +87,6 @@ No loopback available? `mtranscribe record` still works with mic only, and `mtra
 
 Audio tracks are deleted after transcription unless you pass `--keep-audio`.
 
-## Roadmap
-
-- [ ] `pyannote` extra for splitting `others` into individual speakers
-- [ ] Verified macOS/BlackHole support
-- [ ] Video container testing (mp4/mkv/webm) beyond audio-only files
-
 ## License
 
 MIT
