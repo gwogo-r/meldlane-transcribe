@@ -58,14 +58,17 @@ def record_cmd(
     keep_audio: bool = typer.Option(False, "--keep-audio", help="не удалять WAV-дорожки после транскрибации"),
 ):
     """Записать mic (+ system audio, если найден loopback) и сразу транскрибировать."""
-    from .capture import MAX_SECONDS_DEFAULT, autodetect_loopback, record_tracks
+    from .capture import MAX_SECONDS_DEFAULT, record_tracks, system_track_strategy
     from .sessions import cleanup_audio, create_session_dir, save_transcript
     from .transcriber import transcribe_file
 
     session = create_session_dir(config.outputs_dir())
-    sys_found = autodetect_loopback() is not None
+    strategy = system_track_strategy()
+    sys_label = {"wasapi-loopback": "WASAPI loopback", "named-device": "именованное устройство"}.get(
+        strategy[0] if strategy else "", "нет — только микрофон"
+    )
     print(f"запись{f' {seconds} сек' if seconds else ' (останови: mtranscribe stop)'}... "
-          f"(mic: {config.mic_device() or 'default'}, system: {'найден loopback' if sys_found else 'нет — только микрофон'})")
+          f"(mic: {config.mic_device() or 'default'}, system: {sys_label})")
 
     tracks = record_tracks(session, seconds or MAX_SECONDS_DEFAULT)
     print(f"записаны дорожки: {', '.join(tracks)}; транскрибирую...")
