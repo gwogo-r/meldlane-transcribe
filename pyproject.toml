@@ -10,6 +10,22 @@ readme = "README.md"
 license = { text = "MIT" }
 authors = [{ name = "Roman Fakhrutdinov" }]
 requires-python = ">=3.11"
+keywords = [
+    "transcription", "speech-to-text", "stt", "whisper", "faster-whisper",
+    "meeting-transcription", "audio-transcription", "speaker-diarization",
+    "voice-recognition", "asr", "zoom", "google-meet", "wasapi", "loopback",
+]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: Microsoft :: Windows",
+    "Operating System :: MacOS",
+    "Topic :: Multimedia :: Sound/Audio :: Speech",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+    "Environment :: Console",
+    "Intended Audience :: Developers",
+]
 dependencies = [
     "faster-whisper",
     "sounddevice",
