@@ -27,7 +27,7 @@ def _print_transcript(transcript: Transcript, path: Path) -> None:
         print(f"  [{s.start:7.1f}s {who:>6}] {s.text}")
     if len(transcript.segments) > 10:
         print(f"  ... и ещё {len(transcript.segments) - 10}")
-    print(f"сохранено: {path}")
+    print(f"сохранено: {path} (+ {path.with_suffix('.txt').name} для чтения)")
 
 
 @app.command("file")

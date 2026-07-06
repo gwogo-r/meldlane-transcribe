@@ -29,7 +29,7 @@ mtranscribe record --seconds 300
 mtranscribe doctor
 ```
 
-Result: `outputs/<timestamp>/transcript.json`
+Result: `outputs/<timestamp>/transcript.json` (+ `transcript.txt` alongside it, plain `[mm:ss speaker] text` lines for reading)
 
 ```json
 {
@@ -48,7 +48,9 @@ Result: `outputs/<timestamp>/transcript.json`
 
 During live capture the mic and system audio are recorded as **separate tracks**, so speaker attribution is free: everything from your mic is `me`, everything from the loopback is `others`. No diarization model, no GPU, no tokens.
 
-For single-track files, full diarization (`spk_0`, `spk_1`, ...) is available as an optional extra: `pip install meldlane-transcribe[diarize]` (pyannote, requires torch + HF token).
+**Limitation:** this only tells apart "me" vs "everyone else" — if multiple people are talking on the other side of the call, they all land in `others` undivided, since a channel has no notion of individual voices. Telling *them* apart from each other requires voice-based diarization (below), not just channel separation.
+
+For single-track files, or to split `others` into individual speakers, full diarization (`spk_0`, `spk_1`, ...) is available as an optional extra: `pip install meldlane-transcribe[diarize]` (pyannote, requires torch + HF token) — deliberately not in core, to keep the zero-setup install promise.
 
 ## System audio capture
 
