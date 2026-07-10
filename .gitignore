@@ -6,3 +6,6 @@ build/
 dist/
 .env
 *.wav
+
+# internal notes
+comments-style.md
